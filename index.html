@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Memory Pair Match Game (Made by OSZDAO)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    .game-board {
+      width: 340px;
+      margin: 20px auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-gap: 10px;
+    }
+    .card {
+      background: #3498db;
+      height: 80px;
+      border-radius: 8px;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s, transform 0.3s;
+    }
+    .card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    .card.flipped img,
+    .card.matched img {
+      display: block;
+    }
+    .card.flipped {
+      background: #2ecc71;
+      transform: rotateY(180deg);
+    }
+    .card.matched {
+      background: #95a5a6;
+      cursor: default;
+    }
+    #restart {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background: #e67e22;
+      color: white;
+      cursor: pointer;
+    }
+    #restart:hover {
+      background: #d35400;
+    }
+    #timer {
+      font-size: 20px;
+      margin-top: 10px;
+      color: #333;
+    }
+    #resultScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      font-size: 24px;
+      z-index: 10;
+      padding: 20px;
+    }
+    #resultScreen button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      border: none;
+      background: #27ae60;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #resultScreen button:hover {
+      background: #1e8449;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #555;
+    }
+    footer a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+    .share-btn {
+      background: #1DA1F2;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      font-size: 18px;
+      border-radius: 5px;
+      margin-top: 15px;
+      cursor: pointer;
+    }
+    .share-btn:hover {
+      background: #0d95e8;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Memory Pair Match</h1>
+<div id="timer">Time Left: 60s</div>
+<div class="game-board" id="gameBoard"></div>
+<button id="restart">Restart Game</button>
+
+<!-- Result Screen -->
+<div id="resultScreen">
+  <div id="resultText"></div>
+  <button onclick="createBoard()">Play Again</button>
+  <button class="share-btn" id="shareBtn">Share on Twitter</button>
+</div>
+
+<footer>
+  Made by <a href="https://twitter.com/OSZDAO" target="_blank">OSZDAO</a>
+</footer>
+
+<!-- Sounds -->
+<audio id="correctSound" src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" preload="auto"></audio>
+<audio id="wrongSound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3" preload="auto"></audio>
+
+<script>
+  const board = document.getElementById('gameBoard');
+  const restartButton = document.getElementById('restart');
+  const timerDisplay = document.getElementById('timer');
+  const resultScreen = document.getElementById('resultScreen');
+  const resultText = document.getElementById('resultText');
+  const shareBtn = document.getElementById('shareBtn');
+  const correctSound = document.getElementById('correctSound');
+  const wrongSound = document.getElementById('wrongSound');
+
+  let cards = [];
+  let flippedCards = [];
+  let matchedCount = 0;
+  let timer;
+  let timeLeft = 60;
+  let gameActive = true;
+  let soundUnlocked = false;
+
+  const images = [
+    'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1504198453319-5ce911bafcde?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1481349518771-20055b2a7b24?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1482062364825-616fd23b8fc1?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1516637090014-cb1ab78511f5?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80',
+    'https://images.unsplash.com/photo-1531266751814-56d5bf172e69?crop=entropy&cs=tinysrgb&fit=crop&h=80&w=80'
+  ];
+
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function startTimer() {
+    clearInterval(timer);
+    timeLeft = 60;
+    timerDisplay.textContent = `Time Left: ${timeLeft}s`;
+    timer = setInterval(() => {
+      if (!gameActive) return;
+      timeLeft--;
+      timerDisplay.textContent = `Time Left: ${timeLeft}s`;
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        endGame(false);
+      }
+    }, 1000);
+  }
+
+  function createBoard() {
+    const doubleImages = [...images, ...images];
+    const shuffled = shuffle(doubleImages);
+    board.innerHTML = '';
+    cards = [];
+    matchedCount = 0;
+    flippedCards = [];
+    gameActive = true;
+    resultScreen.style.display = 'none';
+    shuffled.forEach((imgSrc, index) => {
+      const card = document.createElement('div');
+      card.classList.add('card');
+      card.dataset.img = imgSrc;
+      card.dataset.index = index;
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      card.appendChild(img);
+      card.addEventListener('click', flipCard);
+      board.appendChild(card);
+      cards.push(card);
+    });
+    startTimer();
+  }
+
+  function unlockSounds() {
+    if (!soundUnlocked) {
+      document.body.addEventListener('click', function unlock() {
+        correctSound.play().catch(()=>{});
+        wrongSound.play().catch(()=>{});
+        soundUnlocked = true;
+        document.body.removeEventListener('click', unlock);
+      });
+    }
+  }
+
+  function flipCard() {
+    if (!gameActive || this.classList.contains('flipped') || this.classList.contains('matched') || flippedCards.length === 2) {
+      return;
+    }
+    unlockSounds();
+    this.classList.add('flipped');
+    flippedCards.push(this);
+
+    if (flippedCards.length === 2) {
+      checkMatch();
+    }
+  }
+
+  function checkMatch() {
+    const [card1, card2] = flippedCards;
+    if (card1.dataset.img === card2.dataset.img) {
+      correctSound.currentTime = 0;
+      correctSound.play();
+      card1.classList.add('matched');
+      card2.classList.add('matched');
+      matchedCount += 2;
+      flippedCards = [];
+      if (matchedCount === cards.length) {
+        setTimeout(() => {
+          endGame(true);
+        }, 300);
+      }
+    } else {
+      wrongSound.currentTime = 0;
+      wrongSound.play();
+      setTimeout(() => {
+        card1.classList.remove('flipped');
+        card2.classList.remove('flipped');
+        flippedCards = [];
+      }, 1000);
+    }
+  }
+
+  function endGame(won) {
+    gameActive = false;
+    clearInterval(timer);
+    resultScreen.style.display = 'flex';
+    resultText.textContent = won ? "Congratulations! You matched all pairs!" : "Time's up! Try again!";
+  }
+
+  shareBtn.addEventListener('click', () => {
+    const text = encodeURIComponent("I just played an awesome Memory Match game made by @OSZDAO! Try it yourself!");
+    const url = encodeURIComponent(window.location.href);
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+  });
+
+  restartButton.addEventListener('click', () => {
+    createBoard();
+  });
+
+  createBoard();
+</script>
+
+</body>
+</html>
